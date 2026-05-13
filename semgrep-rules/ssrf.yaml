@@ -1,0 +1,55 @@
+# SSRF (server-side request forgery) and IDOR (insecure direct object
+# reference) patterns. Both are extremely common in small SaaS that
+# accept URLs from users (webhook destinations, image proxies, etc.)
+# or pass user-controlled IDs to database queries without auth checks.
+
+rules:
+  - id: fetch-with-user-input
+    pattern-either:
+      - pattern: fetch($REQ.body.$URL)
+      - pattern: fetch($REQ.body.$URL, ...)
+      - pattern: fetch($REQ.query.$URL)
+      - pattern: fetch($REQ.query.$URL, ...)
+      - pattern: axios.get($REQ.body.$URL)
+      - pattern: axios.get($REQ.query.$URL)
+    message: >-
+      Outbound HTTP request to URL from user input. If unrestricted, an
+      attacker can probe internal services (SSRF) including cloud
+      metadata endpoints. Validate against an allowlist.
+    languages: [javascript, typescript]
+    severity: WARNING
+    metadata:
+      category: ssrf
+
+  - id: idor-direct-id-query
+    pattern-either:
+      - pattern: |-
+          prisma.$MODEL.findUnique({ where: { id: $REQ.params.$ID } })
+      - pattern: |-
+          prisma.$MODEL.findFirst({ where: { id: $REQ.params.$ID } })
+      - pattern: |-
+          prisma.$MODEL.update({ where: { id: $REQ.params.$ID }, ... })
+      - pattern: |-
+          prisma.$MODEL.delete({ where: { id: $REQ.params.$ID } })
+    message: >-
+      Resource accessed by ID from URL without a visible ownership check.
+      This is the classic IDOR pattern. Add userId from the session to the
+      where clause so users cannot access other users' records by guessing IDs.
+    languages: [javascript, typescript]
+    severity: WARNING
+    metadata:
+      category: idor
+
+  - id: open-redirect
+    pattern-either:
+      - pattern: $RES.redirect($REQ.query.$URL)
+      - pattern: $RES.redirect($REQ.body.$URL)
+      - pattern: return Response.redirect($REQ.nextUrl.searchParams.get($URL))
+    message: >-
+      Open redirect: user-controlled URL is used in a redirect without
+      validation. Attackers use these for phishing. Validate against
+      an allowlist of known paths or domains.
+    languages: [javascript, typescript]
+    severity: WARNING
+    metadata:
+      category: ssrf

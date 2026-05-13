@@ -1,0 +1,79 @@
+# Authentication, session, and authorization bug patterns common
+# in indie hacker SaaS built on Next.js / Express / Fastify.
+
+rules:
+  - id: missing-auth-check-in-api-route
+    patterns:
+      - pattern: |
+          export async function $METHOD($REQ) {
+            ...
+            return $RESPONSE
+          }
+      - metavariable-regex:
+          metavariable: $METHOD
+          regex: '^(GET|POST|PUT|DELETE|PATCH)$'
+      - pattern-not-inside: |
+          export async function $METHOD($REQ) {
+            ...
+            const $SESSION = await auth(...);
+            ...
+          }
+      - pattern-not-inside: |
+          export async function $METHOD($REQ) {
+            ...
+            const $SESSION = await getServerSession(...);
+            ...
+          }
+      - pattern-not-inside: |
+          export async function $METHOD($REQ) {
+            ...
+            await requireAuth(...);
+            ...
+          }
+    message: >-
+      Next.js API route handler has no visible auth check. If this endpoint
+      reads or mutates user data, it may allow unauthenticated access.
+    paths:
+      include:
+        - "**/app/api/**/*.ts"
+        - "**/app/api/**/*.js"
+    languages: [typescript, javascript]
+    severity: WARNING
+    metadata:
+      category: auth
+
+  - id: insecure-cookie-no-httponly
+    pattern: |-
+      $RES.cookie($NAME, $VAL, { ..., httpOnly: false, ... })
+    message: >-
+      Cookie set with httpOnly explicitly disabled. Session cookies should
+      always be httpOnly so JavaScript cannot read them.
+    languages: [javascript, typescript]
+    severity: WARNING
+    metadata:
+      category: auth
+
+  - id: insecure-cookie-no-secure
+    pattern: |-
+      $RES.cookie($NAME, $VAL, { ..., secure: false, ... })
+    message: >-
+      Cookie set with secure explicitly disabled. Session cookies should
+      always be secure so they are only sent over HTTPS.
+    languages: [javascript, typescript]
+    severity: WARNING
+    metadata:
+      category: auth
+
+  - id: jwt-none-algorithm
+    pattern-either:
+      - pattern: |-
+          jwt.verify($TOKEN, $KEY, { ..., algorithms: ['none'], ... })
+      - pattern: |-
+          jwt.verify($TOKEN, $KEY, { ..., algorithms: ["none"], ... })
+    message: >-
+      JWT 'none' algorithm allows attackers to forge tokens. Use explicit
+      algorithms like ['HS256'] or ['RS256'].
+    languages: [javascript, typescript]
+    severity: ERROR
+    metadata:
+      category: auth

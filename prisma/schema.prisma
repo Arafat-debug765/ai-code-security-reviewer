@@ -1,0 +1,77 @@
+// Prisma schema for AI Code Security Reviewer.
+//
+// Weekend 2 task: run `pnpm db:push` to create these tables in your
+// Neon Postgres instance (the connection string goes in DATABASE_URL).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// One row per GitHub App installation (i.e., one row per user/org that
+// installed our app on at least one repo).
+model Installation {
+  id                Int       @id // GitHub installation ID
+  accountLogin      String    // GitHub username or org name
+  accountType       String    // "User" or "Organization"
+  createdAt         DateTime  @default(now())
+  plan              String    @default("free") // "free" | "pro"
+  stripeCustomerId  String?
+  repos             Repo[]
+}
+
+model Repo {
+  id              Int          @id @default(autoincrement())
+  githubId        BigInt       @unique
+  fullName        String       // "owner/name"
+  isPrivate       Boolean
+  installation    Installation @relation(fields: [installationId], references: [id], onDelete: Cascade)
+  installationId  Int
+  scans           Scan[]
+
+  @@index([installationId])
+}
+
+model Scan {
+  id                  Int        @id @default(autoincrement())
+  repo                Repo       @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  repoId              Int
+  prNumber            Int
+  commitSha           String
+  status              String     // "pending" | "running" | "complete" | "failed"
+  semgrepFindings     Int        @default(0)
+  confirmedFindings   Int        @default(0)
+  falsePositives      Int        @default(0)
+  inputTokens         Int        @default(0)
+  outputTokens        Int        @default(0)
+  durationMs          Int?
+  errorMessage        String?
+  startedAt           DateTime   @default(now())
+  completedAt         DateTime?
+  findings            Finding[]
+
+  @@index([repoId, startedAt])
+}
+
+model Finding {
+  id              Int     @id @default(autoincrement())
+  scan            Scan    @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  scanId          Int
+  ruleId          String
+  category        String
+  severity        String
+  filePath        String
+  startLine       Int
+  endLine         Int
+  confirmed       Boolean
+  confidence      String
+  explanation     String  @db.Text
+  suggestedFix    String? @db.Text
+  userFeedback    String? // null | "helpful" | "false-positive" — drives prompt iteration
+
+  @@index([scanId])
+}

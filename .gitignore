@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build output
+.next/
+out/
+build/
+dist/
+
+# Environment
+.env
+.env*.local
+*.pem
+
+# Runtime data
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Testing
+coverage/
+.nyc_output
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Misc
+.vercel
+.turbo
+*.tsbuildinfo
+next-env.d.ts
+
+# Scan output (local testing)
+scan-results/
+*.scan.json
+
+# Python virtualenv (Semgrep)
+.venv/

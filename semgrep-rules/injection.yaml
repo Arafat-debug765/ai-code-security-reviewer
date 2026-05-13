@@ -1,0 +1,61 @@
+# Injection patterns: SQL, command execution, and unsafe code evaluation.
+# Modern ORMs prevent most SQL injection by default, but raw queries and
+# child_process.exec with user input remain common bug classes.
+
+rules:
+  - id: raw-sql-with-user-input
+    pattern-either:
+      - pattern: db.query(`... ${$INPUT} ...`)
+      - pattern: prisma.$queryRawUnsafe($Q)
+      - pattern: prisma.$executeRawUnsafe($Q)
+      - pattern: knex.raw(`... ${$INPUT} ...`)
+    message: >-
+      SQL query built via string interpolation. Use parameterized queries
+      via the tagged-template `prisma.$queryRaw` form, not `$queryRawUnsafe`.
+    languages: [javascript, typescript]
+    severity: ERROR
+    metadata:
+      category: injection
+
+  - id: exec-with-user-input
+    pattern-either:
+      - pattern: child_process.exec($CMD, ...)
+      - pattern: child_process.execSync($CMD, ...)
+      - pattern: exec($CMD, ...)
+      - pattern: execSync($CMD, ...)
+    message: >-
+      child_process.exec() with a dynamic command. If any part of $CMD
+      comes from user input, this is RCE. Prefer execFile() with an array
+      of arguments, which does not invoke a shell.
+    languages: [javascript, typescript]
+    severity: ERROR
+    metadata:
+      category: injection
+
+  - id: eval-user-input
+    pattern-either:
+      - pattern: eval($INPUT)
+      - pattern: new Function($INPUT)
+      - pattern: vm.runInNewContext($INPUT, ...)
+    message: >-
+      Dynamic code execution from a variable. If $INPUT is user-controlled,
+      this is full RCE. There is almost never a legitimate reason for eval
+      in a web app.
+    languages: [javascript, typescript]
+    severity: ERROR
+    metadata:
+      category: injection
+
+  - id: insecure-cors-wildcard
+    pattern-either:
+      - pattern: |-
+          res.setHeader('Access-Control-Allow-Origin', '*')
+      - pattern: |-
+          res.headers.set('Access-Control-Allow-Origin', '*')
+    message: >-
+      CORS allows any origin. Combined with Access-Control-Allow-Credentials,
+      this exposes user data to any site. Restrict to your known origins.
+    languages: [javascript, typescript]
+    severity: WARNING
+    metadata:
+      category: cors
